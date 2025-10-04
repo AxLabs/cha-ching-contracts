@@ -112,7 +112,7 @@ contract TickerRegistry is AccessControl {
 
     function _isValidTicker(string memory s) internal pure returns (bool) {
         bytes memory b = bytes(s);
-        if (b.length < 3 || b.length > 16) return false; // allow up to 16 incl. epoch suffix
+        if (b.length < 3 || b.length > 16) return false; // allow up to 16 incl. campaign suffix
         uint8 c0 = uint8(b[0]);
         if (!(c0 >= 65 && c0 <= 90)) return false; // must start with letter
         for (uint256 i = 1; i < b.length; i++) {

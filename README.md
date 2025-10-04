@@ -1,22 +1,22 @@
 ## Cha-Ching Contracts
 
-ERC‑1155 points system where token IDs represent Epochs for teams, plus a ticker registry to map human‑readable tickers.
+ERC‑1155 points system where token IDs represent Campaigns for teams, plus a ticker registry to map human‑readable tickers.
 
 ### Contracts
-- **ChaChing1155**: ERC‑1155 with per‑Epoch metadata and supply tracking.
+- **ChaChing1155**: ERC‑1155 with per‑Campaign metadata and supply tracking.
 - **TickerRegistry**: Globally‑unique ticker assignment per tokenId with cooldown/timelock.
 
-### Token IDs (Epochs)
-- Token IDs represent Epochs, not organizations directly.
-- Deterministic derivation: `uint256(keccak256(abi.encode(chainId, teamId, epochId)))`.
+### Token IDs (Campaigns)
+- Token IDs represent Campaigns, not organizations directly.
+- Deterministic derivation: `uint256(keccak256(abi.encode(chainId, teamId, campaignId)))`.
 - Two creation flows:
-  - `createEpochDerived(teamId, epochId, meta)` → derives `tokenId` and creates metadata.
-  - `createEpoch(tokenId, teamId, epochId, meta)` → uses a provided `tokenId`.
+  - `createCampaignDerived(teamId, campaignId, meta)` → derives `tokenId` and creates metadata.
+  - `createCampaign(tokenId, teamId, campaignId, meta)` → uses a provided `tokenId`.
 
 ### Roles and Permissions
 ChaChing1155
 - **DEFAULT_ADMIN_ROLE**: Grant/revoke roles.
-- **METADATA_ROLE**: `createEpoch`, `createEpochDerived`, `setEpochMetadata`, `setURI`.
+- **METADATA_ROLE**: `createCampaign`, `createCampaignDerived`, `setCampaignMetadata`, `setURI`.
 - **MINTER_ROLE**: `mint`, `mintBatch`.
 - **BURNER_ROLE**: `burn`, `burnBatch`.
 
