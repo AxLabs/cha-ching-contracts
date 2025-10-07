@@ -2,11 +2,11 @@ import { expect } from "chai";
 import { ethers } from "hardhat";
 import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 
-describe("TickerRegistry", function () {
+describe("ChaChingTickerRegistry", function () {
   async function deployFixture() {
     const [deployer, controller, user] = await ethers.getSigners();
-    const TickerRegistry = await ethers.getContractFactory("TickerRegistry");
-    const reg = await TickerRegistry.deploy(deployer.address);
+    const ChaChingTickerRegistry = await ethers.getContractFactory("ChaChingTickerRegistry");
+    const reg = await ChaChingTickerRegistry.deploy(deployer.address);
     await reg.waitForDeployment();
 
     const CONTROLLER_ROLE = await reg.CONTROLLER_ROLE();
@@ -26,10 +26,10 @@ describe("TickerRegistry", function () {
     const tokenId = 1n;
     await expect(
       reg.connect(controller).setTicker(tokenId, "ab")
-    ).to.be.revertedWith("TickerRegistry: invalid ticker");
+    ).to.be.revertedWith("ChaChingTickerRegistry: invalid ticker");
     await expect(
       reg.connect(controller).setTicker(tokenId, "A_1")
-    ).to.be.revertedWith("TickerRegistry: invalid ticker");
+    ).to.be.revertedWith("ChaChingTickerRegistry: invalid ticker");
     await reg.connect(controller).setTicker(tokenId, "ching-axl-e1");
     const [pendingTicker] = await reg.getPending(tokenId);
     expect(pendingTicker).to.eq("CHING-AXL-E1");
@@ -51,7 +51,7 @@ describe("TickerRegistry", function () {
     // cannot take same for B (reverts at setTicker)
     await expect(
       reg.connect(controller).setTicker(tokenB, "CHING-AXL-E1")
-    ).to.be.revertedWith("TickerRegistry: ticker already taken");
+    ).to.be.revertedWith("ChaChingTickerRegistry: ticker already taken");
 
     // change A to new ticker after cooldown
     await ethers.provider.send("evm_increaseTime", [2]);
@@ -71,7 +71,7 @@ describe("TickerRegistry", function () {
     await reg.setRenamePolicy(0, 5); // no cooldown, timelock 5s
     const tokenId = 3n;
     await reg.connect(controller).setTicker(tokenId, "DELAY");
-    await expect(reg.connect(controller).finalizeTicker(tokenId)).to.be.revertedWith("TickerRegistry: not ready");
+    await expect(reg.connect(controller).finalizeTicker(tokenId)).to.be.revertedWith("ChaChingTickerRegistry: not ready");
     await ethers.provider.send("evm_increaseTime", [6]);
     await ethers.provider.send("evm_mine", []);
     await reg.connect(controller).finalizeTicker(tokenId);
@@ -93,7 +93,7 @@ describe("TickerRegistry", function () {
     // immediately setting again should fail due to cooldown
     await expect(
       reg.connect(controller).setTicker(tokenId, "AAB")
-    ).to.be.revertedWith("TickerRegistry: cooldown");
+    ).to.be.revertedWith("ChaChingTickerRegistry: cooldown");
   });
 
   it("clearTicker frees the name and emits events", async function () {

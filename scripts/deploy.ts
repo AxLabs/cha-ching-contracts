@@ -6,10 +6,10 @@ async function main() {
 
   const baseUri = "ipfs://";
 
-  const TickerRegistry = await ethers.getContractFactory("TickerRegistry");
-  const registry = await TickerRegistry.deploy(deployer.address);
+  const ChaChingTickerRegistry = await ethers.getContractFactory("ChaChingTickerRegistry");
+  const registry = await ChaChingTickerRegistry.deploy(deployer.address);
   await registry.waitForDeployment();
-  console.log("TickerRegistry:", await registry.getAddress());
+  console.log("ChaChingTickerRegistry:", await registry.getAddress());
 
   const ChaChing1155 = await ethers.getContractFactory("ChaChing1155");
   const cc = await ChaChing1155.deploy(baseUri, deployer.address);

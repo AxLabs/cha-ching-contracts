@@ -4,7 +4,7 @@ ERC‑1155 points system where token IDs represent Campaigns for teams, plus a t
 
 ### Contracts
 - **ChaChing1155**: ERC‑1155 with per‑Campaign metadata and supply tracking.
-- **TickerRegistry**: Globally‑unique ticker assignment per tokenId with cooldown/timelock.
+- **ChaChingTickerRegistry**: Globally‑unique ticker assignment per tokenId with cooldown/timelock.
 
 ### Token IDs (Campaigns)
 - Token IDs represent Campaigns, not organizations directly.
@@ -20,7 +20,7 @@ ChaChing1155
 - **MINTER_ROLE**: `mint`, `mintBatch`.
 - **BURNER_ROLE**: `burn`, `burnBatch`.
 
-TickerRegistry
+ChaChingTickerRegistry
 - **DEFAULT_ADMIN_ROLE**: `setRenamePolicy(cooldown, timelock)`.
 - **CONTROLLER_ROLE**: `setTicker(tokenId, ticker)`, `finalizeTicker(tokenId)`, `clearTicker(tokenId)`.
 - Behavior: tickers are uppercased, unique per chain; `renameCooldown` and `renameTimelock` govern changes.
@@ -64,7 +64,7 @@ Reference: Filecoin Calibration network guide — [`https://docs.filecoin.io/net
 ### Deployment Notes
 - Constructors
   - `ChaChing1155(baseUri, admin)` → `baseUri` like `ipfs://`, `admin` receives admin + metadata roles initially.
-  - `TickerRegistry(admin)` → `admin` receives default admin.
+  - `ChaChingTickerRegistry(admin)` → `admin` receives default admin.
 - The sample script deploys both with the deployer as admin.
 
 ### License

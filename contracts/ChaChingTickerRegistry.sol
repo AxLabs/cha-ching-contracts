@@ -3,11 +3,11 @@ pragma solidity ^0.8.25;
 
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 
-/// @title TickerRegistry
+/// @title ChaChingTickerRegistry
 /// @notice Maps ERC-1155 tokenIds to human-friendly tickers (e.g., CHING-AXL-E1),
 ///         ensuring global uniqueness per chain. Only accounts with CONTROLLER_ROLE
 ///         may set or update a ticker for a given tokenId.
-contract TickerRegistry is AccessControl {
+contract ChaChingTickerRegistry is AccessControl {
     bytes32 public constant CONTROLLER_ROLE = keccak256("CONTROLLER_ROLE");
 
     // tokenId => ticker string
@@ -47,19 +47,19 @@ contract TickerRegistry is AccessControl {
     /// @notice Sets or updates the ticker for a tokenId. Enforces global uniqueness.
     function setTicker(uint256 tokenId, string calldata ticker) external onlyRole(CONTROLLER_ROLE) {
         string memory norm = _normalize(ticker);
-        require(_isValidTicker(norm), "TickerRegistry: invalid ticker");
+        require(_isValidTicker(norm), "ChaChingTickerRegistry: invalid ticker");
         // rate limiting per tokenId
         PendingChange memory p = _pending[tokenId];
-        require(p.activateAt == 0 || block.timestamp >= p.activateAt, "TickerRegistry: change pending");
+        require(p.activateAt == 0 || block.timestamp >= p.activateAt, "ChaChingTickerRegistry: change pending");
         string memory current = _tokenIdToTicker[tokenId];
         if (bytes(current).length != 0) {
             string memory currentNorm = _normalize(current);
             if (keccak256(bytes(currentNorm)) == keccak256(bytes(norm))) {
                 return; // no-op
             }
-            require(block.timestamp >= _tickerLastSetAt[currentNorm] + renameCooldown, "TickerRegistry: cooldown");
+            require(block.timestamp >= _tickerLastSetAt[currentNorm] + renameCooldown, "ChaChingTickerRegistry: cooldown");
         }
-        require(!_tickerTaken[norm], "TickerRegistry: ticker already taken");
+        require(!_tickerTaken[norm], "ChaChingTickerRegistry: ticker already taken");
 
         uint256 activateAt = block.timestamp + renameTimelock;
         _pending[tokenId] = PendingChange({ ticker: norm, activateAt: activateAt });
@@ -68,7 +68,7 @@ contract TickerRegistry is AccessControl {
     /// @notice Finalize a pending ticker change after timelock.
     function finalizeTicker(uint256 tokenId) external onlyRole(CONTROLLER_ROLE) {
         PendingChange memory p = _pending[tokenId];
-        require(p.activateAt != 0 && block.timestamp >= p.activateAt, "TickerRegistry: not ready");
+        require(p.activateAt != 0 && block.timestamp >= p.activateAt, "ChaChingTickerRegistry: not ready");
         string memory current = _tokenIdToTicker[tokenId];
         if (bytes(current).length != 0) {
             string memory currentNorm = _normalize(current);
@@ -76,7 +76,7 @@ contract TickerRegistry is AccessControl {
             emit TickerCleared(tokenId, current, msg.sender);
         }
         string memory norm = p.ticker;
-        require(!_tickerTaken[norm], "TickerRegistry: ticker taken");
+        require(!_tickerTaken[norm], "ChaChingTickerRegistry: ticker taken");
         _tokenIdToTicker[tokenId] = norm;
         _tickerTaken[norm] = true;
         _tickerLastSetAt[norm] = block.timestamp;
@@ -87,7 +87,7 @@ contract TickerRegistry is AccessControl {
     /// @notice Clears the ticker for a tokenId. Intended for migrations.
     function clearTicker(uint256 tokenId) external onlyRole(CONTROLLER_ROLE) {
         string memory current = _tokenIdToTicker[tokenId];
-        require(bytes(current).length != 0, "TickerRegistry: none set");
+        require(bytes(current).length != 0, "ChaChingTickerRegistry: none set");
         string memory currentNorm = _normalize(current);
         delete _tokenIdToTicker[tokenId];
         _tickerTaken[currentNorm] = false;
