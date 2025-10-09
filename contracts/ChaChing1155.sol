@@ -24,11 +24,12 @@ contract ChaChing1155 is ERC1155, ERC1155Supply, AccessControl {
         string image;
         string teamSlug; // optional, mutable display/search field
         string attributesJSON; // arbitrary attributes JSON fragment
-        bool exists;
     }
 
     // tokenId => metadata
     mapping(uint256 => CampaignMeta) private _campaignMeta;
+    // tokenId => exists flag
+    mapping(uint256 => bool) private _campaignExists;
 
     // tokenId => immutable identifiers
     mapping(uint256 => bytes32) private _campaignTeamId;
@@ -71,19 +72,7 @@ contract ChaChing1155 is ERC1155, ERC1155Supply, AccessControl {
         CampaignMeta calldata meta
     ) external onlyRole(METADATA_ROLE) returns (uint256 tokenId) {
         tokenId = deriveCampaignTokenId(teamId, campaignId);
-        require(!_campaignMeta[tokenId].exists, "ChaChing1155: campaign exists");
-        _campaignMeta[tokenId] = CampaignMeta({
-            name: meta.name,
-            symbol: meta.symbol,
-            description: meta.description,
-            image: meta.image,
-            teamSlug: meta.teamSlug,
-            attributesJSON: meta.attributesJSON,
-            exists: true
-        });
-        _campaignTeamId[tokenId] = teamId;
-        _campaignCampaignId[tokenId] = campaignId;
-        emit CampaignCreated(tokenId, meta.name, meta.symbol);
+        _createCampaign(tokenId, teamId, campaignId, meta);
     }
 
     /// @notice Creates a campaign tokenId with initial metadata. Name/symbol defined here, not derived from org.
@@ -93,7 +82,17 @@ contract ChaChing1155 is ERC1155, ERC1155Supply, AccessControl {
         bytes32 campaignId,
         CampaignMeta calldata meta
     ) external onlyRole(METADATA_ROLE) {
-        require(!_campaignMeta[tokenId].exists, "ChaChing1155: campaign exists");
+        _createCampaign(tokenId, teamId, campaignId, meta);
+    }
+
+    /// @dev Internal function to create a campaign with validation
+    function _createCampaign(
+        uint256 tokenId,
+        bytes32 teamId,
+        bytes32 campaignId,
+        CampaignMeta calldata meta
+    ) internal {
+        require(!_campaignExists[tokenId], "ChaChing1155: campaign exists");
         require(bytes(meta.name).length > 0, "ChaChing1155: name required");
         require(bytes(meta.symbol).length > 0, "ChaChing1155: symbol required");
 
@@ -103,9 +102,9 @@ contract ChaChing1155 is ERC1155, ERC1155Supply, AccessControl {
             description: meta.description,
             image: meta.image,
             teamSlug: meta.teamSlug,
-            attributesJSON: meta.attributesJSON,
-            exists: true
+            attributesJSON: meta.attributesJSON
         });
+        _campaignExists[tokenId] = true;
         _campaignTeamId[tokenId] = teamId;
         _campaignCampaignId[tokenId] = campaignId;
 
@@ -113,7 +112,7 @@ contract ChaChing1155 is ERC1155, ERC1155Supply, AccessControl {
     }
 
     function setCampaignMetadata(uint256 tokenId, CampaignMeta calldata meta) external onlyRole(METADATA_ROLE) {
-        require(_campaignMeta[tokenId].exists, "ChaChing1155: campaign not found");
+        require(_campaignExists[tokenId], "ChaChing1155: campaign not found");
         require(bytes(meta.name).length > 0, "ChaChing1155: name required");
         require(bytes(meta.symbol).length > 0, "ChaChing1155: symbol required");
         CampaignMeta storage m = _campaignMeta[tokenId];
@@ -127,7 +126,7 @@ contract ChaChing1155 is ERC1155, ERC1155Supply, AccessControl {
     }
 
     function mint(address to, uint256 id, uint256 amount, bytes calldata data) external onlyRole(MINTER_ROLE) {
-        require(_campaignMeta[id].exists, "ChaChing1155: campaign not found");
+        require(_campaignExists[id], "ChaChing1155: campaign not found");
         _mint(to, id, amount, data);
     }
 
@@ -136,7 +135,7 @@ contract ChaChing1155 is ERC1155, ERC1155Supply, AccessControl {
         onlyRole(MINTER_ROLE)
     {
         for (uint256 i = 0; i < ids.length; i++) {
-            require(_campaignMeta[ids[i]].exists, "ChaChing1155: campaign not found");
+            require(_campaignExists[ids[i]], "ChaChing1155: campaign not found");
         }
         _mintBatch(to, ids, amounts, data);
     }
@@ -150,7 +149,7 @@ contract ChaChing1155 is ERC1155, ERC1155Supply, AccessControl {
     }
 
     function uri(uint256 id) public view override returns (string memory) {
-        if (!_campaignMeta[id].exists) {
+        if (!_campaignExists[id]) {
             return super.uri(id);
         }
         CampaignMeta memory m = _campaignMeta[id];
@@ -160,13 +159,13 @@ contract ChaChing1155 is ERC1155, ERC1155Supply, AccessControl {
         string memory json = string(
             abi.encodePacked(
                 '{',
-                '"name":"', m.name, '",',
-                '"symbol":"', m.symbol, '",',
-                '"description":"', m.description, '",',
-                '"image":"', m.image, '",',
+                '"name":"', _escapeJSON(m.name), '",',
+                '"symbol":"', _escapeJSON(m.symbol), '",',
+                '"description":"', _escapeJSON(m.description), '",',
+                '"image":"', _escapeJSON(m.image), '",',
                 '"attributes":', bytes(m.attributesJSON).length == 0 ? '[]' : m.attributesJSON, ',',
                 '"properties":{',
-                    '"team_slug":"', m.teamSlug, '",',
+                    '"team_slug":"', _escapeJSON(m.teamSlug), '",',
                     '"team_id":"', _toHexString(teamId), '",',
                     '"campaign_id":"', _toHexString(campaignId), '"',
                 '}',
@@ -194,6 +193,70 @@ contract ChaChing1155 is ERC1155, ERC1155Supply, AccessControl {
 
     function supportsInterface(bytes4 interfaceId) public view override(ERC1155, AccessControl) returns (bool) {
         return super.supportsInterface(interfaceId);
+    }
+
+    /// @dev Escapes special characters for JSON string values.
+    /// Escapes: " \ / \b \f \n \r \t
+    function _escapeJSON(string memory str) internal pure returns (string memory) {
+        bytes memory input = bytes(str);
+        uint256 len = input.length;
+        if (len == 0) return str;
+
+        // Count how many escape sequences we need (worst case: every char needs escaping = 2x size)
+        uint256 escapeCount = 0;
+        for (uint256 i = 0; i < len; i++) {
+            uint8 c = uint8(input[i]);
+            if (c == 0x22 || c == 0x5C || c == 0x2F || c == 0x08 || c == 0x0C || c == 0x0A || c == 0x0D || c == 0x09) {
+                escapeCount++;
+            }
+        }
+
+        if (escapeCount == 0) return str; // No escaping needed
+
+        // Allocate new bytes with extra space for escape characters
+        bytes memory result = new bytes(len + escapeCount);
+        uint256 j = 0;
+
+        for (uint256 i = 0; i < len; i++) {
+            uint8 c = uint8(input[i]);
+            if (c == 0x22) {
+                // " -> \"
+                result[j++] = 0x5C; // \
+                result[j++] = 0x22; // "
+            } else if (c == 0x5C) {
+                // \ -> \\
+                result[j++] = 0x5C; // \
+                result[j++] = 0x5C; // \
+            } else if (c == 0x2F) {
+                // / -> \/ (optional but safe)
+                result[j++] = 0x5C; // \
+                result[j++] = 0x2F; // /
+            } else if (c == 0x08) {
+                // backspace -> \b
+                result[j++] = 0x5C; // \
+                result[j++] = 0x62; // b
+            } else if (c == 0x0C) {
+                // form feed -> \f
+                result[j++] = 0x5C; // \
+                result[j++] = 0x66; // f
+            } else if (c == 0x0A) {
+                // newline -> \n
+                result[j++] = 0x5C; // \
+                result[j++] = 0x6E; // n
+            } else if (c == 0x0D) {
+                // carriage return -> \r
+                result[j++] = 0x5C; // \
+                result[j++] = 0x72; // r
+            } else if (c == 0x09) {
+                // tab -> \t
+                result[j++] = 0x5C; // \
+                result[j++] = 0x74; // t
+            } else {
+                result[j++] = bytes1(c);
+            }
+        }
+
+        return string(result);
     }
 
     // Minimal base64 to avoid external libs.
