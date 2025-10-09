@@ -49,7 +49,6 @@ describe("ChaChing1155", function () {
       image: "ipfs://imageHash",
       teamSlug: "axlabs",
       attributesJSON: "[{\"trait_type\":\"campaign\",\"value\":2}]",
-      exists: true,
     };
 
     const tokenId = await cc.createCampaignDerived.staticCall(teamId, campaignId, meta);
@@ -83,7 +82,6 @@ describe("ChaChing1155", function () {
       image: "ipfs://img",
       teamSlug: "a",
       attributesJSON: "[]",
-      exists: true,
     };
     const tokenId = await cc.createCampaignDerived.staticCall(teamId, campaignId, meta);
     await cc.createCampaignDerived(teamId, campaignId, meta);
@@ -116,7 +114,6 @@ describe("ChaChing1155", function () {
       image: "",
       teamSlug: "rg",
       attributesJSON: "[]",
-      exists: true,
     };
     const tokenId = await cc.createCampaignDerived.staticCall(teamId, campaignId, meta);
     await cc.createCampaignDerived(teamId, campaignId, meta);
@@ -159,7 +156,6 @@ describe("ChaChing1155", function () {
       image: "",
       teamSlug: "b",
       attributesJSON: "[]",
-      exists: true,
     };
     const t1 = await cc.createCampaignDerived.staticCall(toBytes32("t1"), toBytes32("c1"), meta);
     await cc.createCampaignDerived(toBytes32("t1"), toBytes32("c1"), meta);
