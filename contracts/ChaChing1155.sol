@@ -7,9 +7,9 @@ import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 
 /// @title ChaChing1155
-/// @notice ERC-1155 implementation for $CHING points. Token IDs represent Campaigns,
-///         not Orgs directly. Metadata is set at ID creation time and can be updated
-///         by METADATA_ROLE. Minting/Burning controlled via MINTER_ROLE/BURNER_ROLE.
+/// @notice ERC-1155 implementation for $CHING points. Token IDs represent arbitrary tokens.
+///         Metadata is set at ID creation time and can be updated by METADATA_ROLE. 
+///         Minting/Burning controlled via MINTER_ROLE/BURNER_ROLE.
 contract ChaChing1155 is ERC1155, ERC1155Supply, AccessControl {
     using Strings for uint256;
 
@@ -17,116 +17,120 @@ contract ChaChing1155 is ERC1155, ERC1155Supply, AccessControl {
     bytes32 public constant BURNER_ROLE = keccak256("BURNER_ROLE");
     bytes32 public constant METADATA_ROLE = keccak256("METADATA_ROLE");
 
-    struct CampaignMeta {
-        string name; // e.g., "$CHING — AxLabs Team (Campaign 5)"
-        string symbol; // e.g., "CHING-AXL"
+    struct TokenMeta {
+        string name;
+        string symbol;
         string description;
         string image;
-        string teamSlug; // optional, mutable display/search field
         string attributesJSON; // arbitrary attributes JSON fragment
     }
 
     // tokenId => metadata
-    mapping(uint256 => CampaignMeta) private _campaignMeta;
+    mapping(uint256 => TokenMeta) private _tokenMeta;
     // tokenId => exists flag
-    mapping(uint256 => bool) private _campaignExists;
-
-    // tokenId => immutable identifiers
-    mapping(uint256 => bytes32) private _campaignTeamId;
-    mapping(uint256 => bytes32) private _campaignCampaignId;
+    mapping(uint256 => bool) private _tokenExists;
+    // Array of all token IDs (for enumeration)
+    uint256[] private _allTokenIds;
+    // tokenId => index in _allTokenIds array
+    mapping(uint256 => uint256) private _tokenIdIndex;
 
     // Base URI used as prefix for on-chain JSON, off-chain servers can override via setURI
     string private _baseUri;
 
-    event CampaignCreated(uint256 indexed tokenId, string name, string symbol);
-    event CampaignMetadataUpdated(uint256 indexed tokenId);
+    // Contract-level metadata for explorers
+    string public name;
+    string public symbol;
 
-    constructor(string memory baseUri, address admin) ERC1155(baseUri) {
+    event TokenCreated(uint256 indexed tokenId, string name, string symbol, string description, string image);
+    event TokenMetadataUpdated(uint256 indexed tokenId);
+
+    constructor(string memory baseUri, address admin, string memory contractName, string memory contractSymbol) ERC1155(baseUri) {
         _baseUri = baseUri;
+        name = contractName;
+        symbol = contractSymbol;
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(METADATA_ROLE, admin);
     }
 
-    /// @notice Deterministically derive a campaign tokenId from spec inputs.
-    /// @dev tokenId = uint256(keccak256(abi.encode(chainId, team_id, campaign_id)))
-    function deriveCampaignTokenId(
-        uint256 chainId,
-        bytes32 teamId,
-        bytes32 campaignId
-    ) public pure returns (uint256) {
-        return uint256(keccak256(abi.encode(chainId, teamId, campaignId)));
-    }
-
-    /// @notice Convenience overload using current chain.
-    function deriveCampaignTokenId(
-        bytes32 teamId,
-        bytes32 campaignId
-    ) public view returns (uint256) {
-        return deriveCampaignTokenId(block.chainid, teamId, campaignId);
-    }
-
-    /// @notice Derive tokenId from inputs and create the campaign with provided metadata.
-    function createCampaignDerived(
-        bytes32 teamId,
-        bytes32 campaignId,
-        CampaignMeta calldata meta
-    ) external onlyRole(METADATA_ROLE) returns (uint256 tokenId) {
-        tokenId = deriveCampaignTokenId(teamId, campaignId);
-        _createCampaign(tokenId, teamId, campaignId, meta);
-    }
-
-    /// @notice Creates a campaign tokenId with initial metadata. Name/symbol defined here, not derived from org.
-    function createCampaign(
+    /// @notice Creates a token with initial metadata.
+    function createToken(
         uint256 tokenId,
-        bytes32 teamId,
-        bytes32 campaignId,
-        CampaignMeta calldata meta
+        TokenMeta calldata meta
     ) external onlyRole(METADATA_ROLE) {
-        _createCampaign(tokenId, teamId, campaignId, meta);
+        _createToken(tokenId, meta);
     }
 
-    /// @dev Internal function to create a campaign with validation
-    function _createCampaign(
+    /// @dev Internal function to create a token with validation
+    function _createToken(
         uint256 tokenId,
-        bytes32 teamId,
-        bytes32 campaignId,
-        CampaignMeta calldata meta
+        TokenMeta calldata meta
     ) internal {
-        require(!_campaignExists[tokenId], "ChaChing1155: campaign exists");
+        require(!_tokenExists[tokenId], "ChaChing1155: token exists");
         require(bytes(meta.name).length > 0, "ChaChing1155: name required");
         require(bytes(meta.symbol).length > 0, "ChaChing1155: symbol required");
 
-        _campaignMeta[tokenId] = CampaignMeta({
+        _tokenMeta[tokenId] = TokenMeta({
             name: meta.name,
             symbol: meta.symbol,
             description: meta.description,
             image: meta.image,
-            teamSlug: meta.teamSlug,
             attributesJSON: meta.attributesJSON
         });
-        _campaignExists[tokenId] = true;
-        _campaignTeamId[tokenId] = teamId;
-        _campaignCampaignId[tokenId] = campaignId;
+        _tokenExists[tokenId] = true;
 
-        emit CampaignCreated(tokenId, meta.name, meta.symbol);
+        // Add to enumeration array
+        _tokenIdIndex[tokenId] = _allTokenIds.length;
+        _allTokenIds.push(tokenId);
+
+        emit TokenCreated(tokenId, meta.name, meta.symbol, meta.description, meta.image);
     }
 
-    function setCampaignMetadata(uint256 tokenId, CampaignMeta calldata meta) external onlyRole(METADATA_ROLE) {
-        require(_campaignExists[tokenId], "ChaChing1155: campaign not found");
+    function setTokenMetadata(uint256 tokenId, TokenMeta calldata meta) external onlyRole(METADATA_ROLE) {
+        require(_tokenExists[tokenId], "ChaChing1155: token not found");
         require(bytes(meta.name).length > 0, "ChaChing1155: name required");
         require(bytes(meta.symbol).length > 0, "ChaChing1155: symbol required");
-        CampaignMeta storage m = _campaignMeta[tokenId];
+        TokenMeta storage m = _tokenMeta[tokenId];
         m.name = meta.name;
         m.symbol = meta.symbol;
         m.description = meta.description;
         m.image = meta.image;
-        m.teamSlug = meta.teamSlug;
         m.attributesJSON = meta.attributesJSON;
-        emit CampaignMetadataUpdated(tokenId);
+        emit TokenMetadataUpdated(tokenId);
+    }
+
+    function getTokenMetadata(uint256 tokenId) external view returns (TokenMeta memory) {
+        require(_tokenExists[tokenId], "ChaChing1155: token not found");
+        return _tokenMeta[tokenId];
+    }
+
+    function tokenExists(uint256 tokenId) external view returns (bool) {
+        return _tokenExists[tokenId];
+    }
+
+    /// @notice Get the total number of token types that have been created
+    /// @dev Useful for explorers to enumerate all tokens
+    function totalTokenTypes() external view returns (uint256) {
+        return _allTokenIds.length;
+    }
+
+    /// @notice Get a token ID by index
+    /// @dev Useful for explorers to enumerate all tokens. Index should be < totalTokenTypes()
+    /// @param index The index in the enumeration array
+    /// @return tokenId The token ID at the given index
+    function tokenByIndex(uint256 index) external view returns (uint256) {
+        require(index < _allTokenIds.length, "ChaChing1155: index out of bounds");
+        return _allTokenIds[index];
+    }
+
+    /// @notice Get all token IDs (may be gas-expensive for large arrays)
+    /// @dev Useful for explorers to get all token IDs at once
+    /// @return tokenIds Array of all token IDs that have been created
+    function getAllTokenIds() external view returns (uint256[] memory) {
+        return _allTokenIds;
     }
 
     function mint(address to, uint256 id, uint256 amount, bytes calldata data) external onlyRole(MINTER_ROLE) {
-        require(_campaignExists[id], "ChaChing1155: campaign not found");
+        require(_tokenExists[id], "ChaChing1155: token not found");
         _mint(to, id, amount, data);
     }
 
@@ -135,7 +139,7 @@ contract ChaChing1155 is ERC1155, ERC1155Supply, AccessControl {
         onlyRole(MINTER_ROLE)
     {
         for (uint256 i = 0; i < ids.length; i++) {
-            require(_campaignExists[ids[i]], "ChaChing1155: campaign not found");
+            require(_tokenExists[ids[i]], "ChaChing1155: token not found");
         }
         _mintBatch(to, ids, amounts, data);
     }
@@ -149,25 +153,22 @@ contract ChaChing1155 is ERC1155, ERC1155Supply, AccessControl {
     }
 
     function uri(uint256 id) public view override returns (string memory) {
-        if (!_campaignExists[id]) {
+        if (!_tokenExists[id]) {
             return super.uri(id);
         }
-        CampaignMeta memory m = _campaignMeta[id];
-        bytes32 teamId = _campaignTeamId[id];
-        bytes32 campaignId = _campaignCampaignId[id];
+        TokenMeta memory m = _tokenMeta[id];
         // Build on-chain JSON; wallets vary, dashboard will rely on subgraph mapping
+        // Build metadata following ERC1155 Metadata URI JSON Schema
+        // https://eips.ethereum.org/EIPS/eip-1155#metadata
         string memory json = string(
             abi.encodePacked(
                 '{',
                 '"name":"', _escapeJSON(m.name), '",',
-                '"symbol":"', _escapeJSON(m.symbol), '",',
                 '"description":"', _escapeJSON(m.description), '",',
                 '"image":"', _escapeJSON(m.image), '",',
-                '"attributes":', bytes(m.attributesJSON).length == 0 ? '[]' : m.attributesJSON, ',',
+                bytes(m.attributesJSON).length == 0 ? '' : string(abi.encodePacked('"attributes":', m.attributesJSON, ',')),
                 '"properties":{',
-                    '"team_slug":"', _escapeJSON(m.teamSlug), '",',
-                    '"team_id":"', _toHexString(teamId), '",',
-                    '"campaign_id":"', _toHexString(campaignId), '"',
+                '"symbol":"', _escapeJSON(m.symbol), '"',
                 '}',
                 '}'
             )

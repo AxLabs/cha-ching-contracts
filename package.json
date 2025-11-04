@@ -19,7 +19,9 @@
     "typescript": "^5.9.2"
   },
   "dependencies": {
+    "@fil-acc/filecoin-solidity-api": "^1.1.2",
     "@openzeppelin/contracts": "^5.4.0",
-    "dotenv": "^17.2.2"
+    "dotenv": "^17.2.2",
+    "filecoin-solidity-api": "^1.1.3"
   }
 }
