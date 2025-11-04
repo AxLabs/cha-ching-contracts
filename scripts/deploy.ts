@@ -13,73 +13,39 @@ async function main() {
   
   const baseUri = process.env.BASE_URI || "ipfs://";
 
-  console.log("\nRole Configuration:");
-  console.log("- Admin:", adminAddress);
-  console.log("- Metadata Role:", metadataRoleAddress);
-  console.log("- Minter Role:", minterRoleAddress);
-  console.log("- Burner Role:", burnerRoleAddress);
-  console.log("- Controller Role:", controllerRoleAddress);
-
-  // Deploy ChaChingTickerRegistry
-  console.log("\nDeploying ChaChingTickerRegistry...");
-  const ChaChingTickerRegistry = await ethers.getContractFactory("ChaChingTickerRegistry");
-  const registry = await ChaChingTickerRegistry.deploy(adminAddress);
-  await registry.waitForDeployment();
-  const registryAddress = await registry.getAddress();
-  console.log("ChaChingTickerRegistry deployed at:", registryAddress);
-
-  // Grant CONTROLLER_ROLE on TickerRegistry
-  const CONTROLLER_ROLE = await registry.CONTROLLER_ROLE();
-  if (controllerRoleAddress !== adminAddress) {
-    console.log("Granting CONTROLLER_ROLE to:", controllerRoleAddress);
-    const tx1 = await registry.grantRole(CONTROLLER_ROLE, controllerRoleAddress);
-    await tx1.wait();
-  } else {
-    console.log("Granting CONTROLLER_ROLE to admin:", controllerRoleAddress);
-    const tx1 = await registry.grantRole(CONTROLLER_ROLE, controllerRoleAddress);
-    await tx1.wait();
-  }
-
-  // Deploy ChaChing1155
-  console.log("\nDeploying ChaChing1155...");
+  // Deploy ChaChing1155 first
+  console.log("=== Deploying ChaChing1155 ===");
   const ChaChing1155 = await ethers.getContractFactory("ChaChing1155");
-  const cc = await ChaChing1155.deploy(baseUri, adminAddress);
+  const cc = await ChaChing1155.deploy(baseUri, deployer.address, "Cha-Ching", "CHING");
   await cc.waitForDeployment();
   const ccAddress = await cc.getAddress();
   console.log("ChaChing1155 deployed at:", ccAddress);
 
-  // Grant roles on ChaChing1155
-  const MINTER_ROLE = await cc.MINTER_ROLE();
-  const BURNER_ROLE = await cc.BURNER_ROLE();
+  // Deploy ChaChingManager
+  console.log("=== Deploying ChaChingManager ===");
+  const ChaChingManager = await ethers.getContractFactory("ChaChingManager");
+  const manager = await ChaChingManager.deploy(deployer.address);
+  await manager.waitForDeployment();
+  const managerAddress = await manager.getAddress();
+  console.log("ChaChingManager deployed at:", managerAddress);
+
+  // Set ChaChing1155 address on manager
+  console.log("=== Setting ChaChing1155 address on manager ===");
+  const tx1 = await manager.setChaChing1155(ccAddress);
+  await tx1.wait();
+  console.log("ChaChing1155 address set on manager");
+
+  // Grant METADATA_ROLE to manager on ChaChing1155
+  console.log("=== Granting METADATA_ROLE to manager ===");
   const METADATA_ROLE = await cc.METADATA_ROLE();
+  const tx2 = await cc.grantRole(METADATA_ROLE, managerAddress);
+  await tx2.wait();
+  console.log("METADATA_ROLE granted to manager");
 
-  // Grant METADATA_ROLE if different from admin (admin already has it from constructor)
-  if (metadataRoleAddress !== adminAddress) {
-    console.log("Granting METADATA_ROLE to:", metadataRoleAddress);
-    const tx2 = await cc.grantRole(METADATA_ROLE, metadataRoleAddress);
-    await tx2.wait();
-  }
-
-  // Grant MINTER_ROLE
-  console.log("Granting MINTER_ROLE to:", minterRoleAddress);
-  const tx3 = await cc.grantRole(MINTER_ROLE, minterRoleAddress);
-  await tx3.wait();
-
-  // Grant BURNER_ROLE
-  console.log("Granting BURNER_ROLE to:", burnerRoleAddress);
-  const tx4 = await cc.grantRole(BURNER_ROLE, burnerRoleAddress);
-  await tx4.wait();
-
-  console.log("\n✅ Deployment complete!");
-  console.log("\nDeployed Contracts:");
-  console.log("- ChaChingTickerRegistry:", registryAddress);
-  console.log("- ChaChing1155:", ccAddress);
-  console.log("\nRoles Granted:");
-  console.log("- DEFAULT_ADMIN_ROLE → ", adminAddress);
-  console.log("- METADATA_ROLE → ", metadataRoleAddress);
-  console.log("- MINTER_ROLE → ", minterRoleAddress);
-  console.log("- BURNER_ROLE → ", burnerRoleAddress);
-  console.log("- CONTROLLER_ROLE → ", controllerRoleAddress);
+  console.log("=== Deployment Summary ===");
+  console.log("ChaChing1155:", ccAddress);
+  console.log("ChaChingManager:", managerAddress);
+  console.log("Setup complete! Manager can now create tokens in ChaChing1155 when epochs are created.");
 }
 
 main().catch((e) => {

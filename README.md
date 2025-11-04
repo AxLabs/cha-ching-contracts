@@ -1,28 +1,27 @@
 ## Cha-Ching Contracts
 
-ERC‑1155 points system where token IDs represent Campaigns for teams, plus a ticker registry to map human‑readable tickers.
+ERC‑1155 points system where token IDs represent Epochs for teams, plus a ticker registry to map human‑readable tickers.
 
 ### Contracts
-- **ChaChing1155**: ERC‑1155 with per‑Campaign metadata and supply tracking.
-- **ChaChingTickerRegistry**: Globally‑unique ticker assignment per tokenId with cooldown/timelock.
+- **ChaChing1155**: ERC‑1155 with per‑token metadata and supply tracking.
+- **ChaChingManager**: Manages epochs, tickers, and contributions with globally‑unique ticker assignment per tokenId with cooldown/timelock. Includes Filecoin storage verification for pieceCids.
 
-### Token IDs (Campaigns)
-- Token IDs represent Campaigns, not organizations directly.
-- Deterministic derivation: `uint256(keccak256(abi.encode(chainId, teamId, campaignId)))`.
-- Two creation flows:
-  - `createCampaignDerived(teamId, campaignId, meta)` → derives `tokenId` and creates metadata.
-  - `createCampaign(tokenId, teamId, campaignId, meta)` → uses a provided `tokenId`.
+### Token IDs
+- Token IDs represent arbitrary tokens in the ERC-1155 contract.
+- Epoch management is handled by the ChaChingManager contract.
+- Token creation flow:
+  - `createToken(tokenId, meta)` → creates a token with metadata.
 
 ### Roles and Permissions
 ChaChing1155
 - **DEFAULT_ADMIN_ROLE**: Grant/revoke roles.
-- **METADATA_ROLE**: `createCampaign`, `createCampaignDerived`, `setCampaignMetadata`, `setURI`.
+- **METADATA_ROLE**: `createToken`, `setTokenMetadata`, `setURI`.
 - **MINTER_ROLE**: `mint`, `mintBatch`.
 - **BURNER_ROLE**: `burn`, `burnBatch`.
 
-ChaChingTickerRegistry
+ChaChingManager
 - **DEFAULT_ADMIN_ROLE**: `setRenamePolicy(cooldown, timelock)`.
-- **CONTROLLER_ROLE**: `setTicker(tokenId, ticker)`, `finalizeTicker(tokenId)`, `clearTicker(tokenId)`.
+- **CONTROLLER_ROLE**: `setTicker(tokenId, ticker)`, `finalizeTicker(tokenId)`, `clearTicker(tokenId)`, epoch management, contribution management.
 - Behavior: tickers are uppercased, unique per chain; `renameCooldown` and `renameTimelock` govern changes.
 
 ### Build & Test
@@ -75,11 +74,8 @@ Reference: Filecoin Calibration network guide — [`https://docs.filecoin.io/net
 ### Deployment Notes
 - Constructors
   - `ChaChing1155(baseUri, admin)` → `baseUri` like `ipfs://`, `admin` receives admin + metadata roles initially.
-  - `ChaChingTickerRegistry(admin)` → `admin` receives default admin.
-- The deployment script automatically grants all roles during deployment:
-  - **ChaChing1155**: DEFAULT_ADMIN_ROLE, METADATA_ROLE, MINTER_ROLE, BURNER_ROLE
-  - **ChaChingTickerRegistry**: DEFAULT_ADMIN_ROLE, CONTROLLER_ROLE
-- All role addresses are configurable via environment variables and default to the deployer address if not specified.
+  - `ChaChingManager(admin)` → `admin` receives default admin and controller roles.
+- The sample script deploys both with the deployer as admin.
 
 ### License
 

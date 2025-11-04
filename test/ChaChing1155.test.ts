@@ -8,7 +8,7 @@ describe("ChaChing1155", function () {
     const baseUri = "ipfs://";
 
     const ChaChing1155 = await ethers.getContractFactory("ChaChing1155");
-    const cc = await ChaChing1155.deploy(baseUri, deployer.address);
+    const cc = await ChaChing1155.deploy(baseUri, deployer.address, "Cha-Ching Points", "CHING");
     await cc.waitForDeployment();
 
     return { cc, deployer, alice, bob, carol, baseUri };
@@ -27,42 +27,35 @@ describe("ChaChing1155", function () {
     expect(await cc.hasRole(METADATA_ROLE, deployer.address)).to.eq(true);
   });
 
-  it("derives deterministic tokenId and equality with explicit chainId", async function () {
+  it("sets contract name and symbol", async function () {
     const { cc } = await loadFixture(deployFixture);
-    const net = await ethers.provider.getNetwork();
-    const teamId = toBytes32("team-axlabs");
-    const campaignId = toBytes32("campaign-1");
-    const derivedA = await cc["deriveCampaignTokenId(bytes32,bytes32)"](teamId, campaignId);
-    const derivedB = await cc["deriveCampaignTokenId(uint256,bytes32,bytes32)"](net.chainId, teamId, campaignId);
-    expect(derivedA).to.eq(derivedB);
+    expect(await cc.name()).to.eq("Cha-Ching Points");
+    expect(await cc.symbol()).to.eq("CHING");
   });
 
-  it("creates campaign by derived method and exposes metadata via data URI", async function () {
+  it("creates token and exposes metadata via data URI", async function () {
     const { cc } = await loadFixture(deployFixture);
-    const teamId = toBytes32("team-axlabs");
-    const campaignId = toBytes32("campaign-2");
+    const tokenId = 1n;
 
     const meta = {
-      name: "$CHING — AxLabs (Campaign 2)",
+      name: "$CHING — AxLabs (Epoch 2)",
       symbol: "CHING-AXL",
-      description: "Points for campaign 2",
+      description: "Points for epoch 2",
       image: "ipfs://imageHash",
-      teamSlug: "axlabs",
-      attributesJSON: "[{\"trait_type\":\"campaign\",\"value\":2}]",
+      attributesJSON: "[{\"trait_type\":\"epoch\",\"value\":2}]",
     };
 
-    const tokenId = await cc.createCampaignDerived.staticCall(teamId, campaignId, meta);
-    await expect(cc.createCampaignDerived(teamId, campaignId, meta))
-      .to.emit(cc, "CampaignCreated")
-      .withArgs(tokenId, meta.name, meta.symbol);
+    await expect(cc.createToken(tokenId, meta))
+      .to.emit(cc, "TokenCreated")
+      .withArgs(tokenId, meta.name, meta.symbol, meta.description, meta.image);
 
     const uri = await cc.uri(tokenId);
     expect(uri.startsWith("data:application/json;base64,")).to.eq(true);
     const payload = uri.split(",")[1];
     const json = JSON.parse(Buffer.from(payload, "base64").toString());
     expect(json.name).to.eq(meta.name);
-    expect(json.symbol).to.eq(meta.symbol);
-    expect(json.properties.team_slug).to.eq(meta.teamSlug);
+    expect(json.properties.symbol).to.eq(meta.symbol);
+    expect(json.description).to.eq(meta.description);
   });
 
   it("falls back to base URI for non-existent id", async function () {
@@ -71,52 +64,46 @@ describe("ChaChing1155", function () {
     expect(await cc.uri(randomId)).to.eq(baseUri);
   });
 
-  it("enforces name and symbol on creation/update and campaign existence", async function () {
+  it("enforces name and symbol on creation/update and token existence", async function () {
     const { cc } = await loadFixture(deployFixture);
-    const teamId = toBytes32("team-a");
-    const campaignId = toBytes32("campaign-a");
+    const tokenId = 2n;
     const meta = {
       name: "A",
       symbol: "AA",
       description: "desc",
       image: "ipfs://img",
-      teamSlug: "a",
       attributesJSON: "[]",
     };
-    const tokenId = await cc.createCampaignDerived.staticCall(teamId, campaignId, meta);
-    await cc.createCampaignDerived(teamId, campaignId, meta);
+    await cc.createToken(tokenId, meta);
 
     await expect(
-      cc.createCampaign(tokenId, teamId, campaignId, meta)
-    ).to.be.revertedWith("ChaChing1155: campaign exists");
+      cc.createToken(tokenId, meta)
+    ).to.be.revertedWith("ChaChing1155: token exists");
 
     await expect(
-      cc.setCampaignMetadata(tokenId, { ...meta, name: "" })
+      cc.setTokenMetadata(tokenId, { ...meta, name: "" })
     ).to.be.revertedWith("ChaChing1155: name required");
 
     await expect(
-      cc.setCampaignMetadata(tokenId, { ...meta, symbol: "" })
+      cc.setTokenMetadata(tokenId, { ...meta, symbol: "" })
     ).to.be.revertedWith("ChaChing1155: symbol required");
 
     await expect(
-      cc.setCampaignMetadata(999n, meta)
-    ).to.be.revertedWith("ChaChing1155: campaign not found");
+      cc.setTokenMetadata(999n, meta)
+    ).to.be.revertedWith("ChaChing1155: token not found");
   });
 
   it("role-gates metadata, minting, and burning", async function () {
     const { cc, deployer, alice, bob } = await loadFixture(deployFixture);
-    const teamId = toBytes32("team-rg");
-    const campaignId = toBytes32("campaign-rg");
+    const tokenId = 3n;
     const meta = {
       name: "Role Gated",
       symbol: "RG",
       description: "",
       image: "",
-      teamSlug: "rg",
       attributesJSON: "[]",
     };
-    const tokenId = await cc.createCampaignDerived.staticCall(teamId, campaignId, meta);
-    await cc.createCampaignDerived(teamId, campaignId, meta);
+    await cc.createToken(tokenId, meta);
 
     const MINTER_ROLE = await cc.MINTER_ROLE();
     const BURNER_ROLE = await cc.BURNER_ROLE();
@@ -154,16 +141,40 @@ describe("ChaChing1155", function () {
       symbol: "BB",
       description: "",
       image: "",
-      teamSlug: "b",
       attributesJSON: "[]",
     };
-    const t1 = await cc.createCampaignDerived.staticCall(toBytes32("t1"), toBytes32("c1"), meta);
-    await cc.createCampaignDerived(toBytes32("t1"), toBytes32("c1"), meta);
+    const t1 = 4n;
+    await cc.createToken(t1, meta);
     const t2 = 999999n; // non-existent
 
     await expect(
       cc.connect(alice).mintBatch(alice.address, [t1, t2], [1, 1], "0x")
-    ).to.be.revertedWith("ChaChing1155: campaign not found");
+    ).to.be.revertedWith("ChaChing1155: token not found");
+  });
+
+  it("supports token enumeration", async function () {
+    const { cc } = await loadFixture(deployFixture);
+    expect(await cc.totalTokenTypes()).to.eq(0n);
+
+    const meta = {
+      name: "Test Token",
+      symbol: "TEST",
+      description: "Test",
+      image: "ipfs://test",
+      attributesJSON: "[]",
+    };
+
+    await cc.createToken(1n, meta);
+    expect(await cc.totalTokenTypes()).to.eq(1n);
+    expect(await cc.tokenByIndex(0)).to.eq(1n);
+
+    await cc.createToken(2n, meta);
+    expect(await cc.totalTokenTypes()).to.eq(2n);
+    
+    const allIds = await cc.getAllTokenIds();
+    expect(allIds.length).to.eq(2);
+    expect(allIds[0]).to.eq(1n);
+    expect(allIds[1]).to.eq(2n);
   });
 
   it("supports ERC1155 and AccessControl interfaces", async function () {
