@@ -4,7 +4,14 @@ async function main() {
   const [deployer] = await ethers.getSigners();
   console.log("Deployer:", deployer.address);
 
-  const baseUri = "ipfs://";
+  // Configuration: Role addresses (defaults to deployer if not specified)
+  const adminAddress = process.env.ADMIN_ADDRESS || deployer.address;
+  const metadataRoleAddress = process.env.METADATA_ROLE_ADDRESS || deployer.address;
+  const minterRoleAddress = process.env.MINTER_ROLE_ADDRESS || deployer.address;
+  const burnerRoleAddress = process.env.BURNER_ROLE_ADDRESS || deployer.address;
+  const controllerRoleAddress = process.env.CONTROLLER_ROLE_ADDRESS || deployer.address;
+  
+  const baseUri = process.env.BASE_URI || "ipfs://";
 
   // Deploy ChaChing1155 first
   console.log("=== Deploying ChaChing1155 ===");

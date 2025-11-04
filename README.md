@@ -36,7 +36,18 @@ npm test
 Create `.env` from `.env.example` (fyi, `.env` is already in .gitignore):
 ```bash
 PRIVATE_KEY=0x...
-# Optional overrides
+
+# Optional: Role addresses (defaults to deployer if not specified)
+# ADMIN_ADDRESS=0x...
+# METADATA_ROLE_ADDRESS=0x...
+# MINTER_ROLE_ADDRESS=0x...
+# BURNER_ROLE_ADDRESS=0x...
+# CONTROLLER_ROLE_ADDRESS=0x...
+
+# Optional: Base URI for token metadata
+# BASE_URI=ipfs://
+
+# Optional: RPC overrides
 # FILECOIN_CALIBRATION_RPC_URL=https://api.calibration.node.glif.io/rpc/v1
 # SEPOLIA_RPC_URL=
 ```
